@@ -1,26 +1,38 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './config/firebase';
+import { auth, db } from './config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import Login from './pages/auth/Login';
+import SuperAdminDashboard from './pages/dashboard/SuperAdminDashboard';
 
-export default function App() {
+function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Récupérer les informations supplémentaires de l'utilisateur depuis Firestore
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data().role);
+        }
+      } else {
+        setUserRole(null);
+      }
       setUser(user);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -34,7 +46,17 @@ export default function App() {
         />
         <Route
           path="/dashboard"
-          element={user ? <div>Dashboard (à implémenter)</div> : <Navigate to="/login" />}
+          element={
+            user ? (
+              userRole === 'superadmin' ? (
+                <SuperAdminDashboard />
+              ) : (
+                <div>Accès non autorisé</div>
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
         />
         <Route 
           path="/" 
@@ -44,3 +66,5 @@ export default function App() {
     </Router>
   );
 }
+
+export default App;
